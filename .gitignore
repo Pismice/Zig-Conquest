@@ -1,0 +1,4 @@
+mydb.db
+zig-cache/
+.zig-cache/
+zig-out/
