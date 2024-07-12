@@ -3,6 +3,11 @@ const sqlite = @import("sqlite");
 
 const Player = @This();
 
+const Result = struct {
+    username: []const u8,
+    gold: i32,
+};
+
 id: usize,
 username: []const u8,
 password: [32]u8,
@@ -38,4 +43,18 @@ pub fn initPlayerById(db: *sqlite.Db, allocator: std.mem.Allocator, id: usize) !
     }
 
     return player;
+}
+
+pub fn ranking(db: *sqlite.Db, allocator: std.mem.Allocator) ![]Result {
+    const query =
+        \\ select username, villages.gold from player
+        \\ inner join villages on villages.player_id = player.id
+        \\ order by villages.gold desc;
+    ;
+    var stmt = try db.prepare(query);
+    defer stmt.deinit();
+
+    const players = try stmt.all(Result, allocator, .{}, .{});
+
+    return players;
 }

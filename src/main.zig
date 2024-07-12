@@ -7,6 +7,7 @@ const game = @import("game.zig");
 const App = @import("app.zig");
 const Player = @import("entities/player.zig");
 const Context = @import("context.zig");
+const ht = @import("httpz").testing;
 const print = std.debug.print;
 
 fn dis_conn(app: *App, action: httpz.Action(Context), req: *httpz.Request, res: *httpz.Response) !void {
@@ -41,12 +42,8 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
-    var pool: std.Thread.Pool = undefined;
-    try pool.init(.{ .allocator = allocator, .n_jobs = 12 });
-    defer pool.deinit();
-
     // Global app context/state
-    var app = App{ .db = &sqldb, .pool = &pool };
+    var app = App{ .db = &sqldb };
 
     // Server config
     var server = try httpz.ServerCtx(*App, Context).init(allocator, .{ .port = 1950 }, &app);
@@ -57,6 +54,7 @@ pub fn main() !void {
     var connected = router.group("", .{ .dispatcher = dis_conn, .ctx = &app });
 
     // Routes
+    not_connected.get("/", welcome);
     not_connected.post("auth/register", auth.register);
     connected.post("auth/login", auth.login);
     connected.post("auth/logout", auth.logout);
@@ -65,4 +63,32 @@ pub fn main() !void {
 
     // Start server
     try server.listen();
+}
+
+pub fn welcome(ctx: Context, req: *httpz.Request, res: *httpz.Response) !void {
+    const players = try Player.ranking(ctx.app.db, req.arena);
+    const msg = try std.fmt.allocPrint(res.arena, "Welcome to my game which currently has {d} players !", .{players.len});
+    try res.json(.{msg}, .{});
+}
+
+test "simple zig test" {
+    try std.testing.expectEqual(3, 1);
+}
+
+test "simple hello request" {
+    var sqldb = try sqlite.Db.init(.{
+        .mode = sqlite.Db.Mode{ .File = "mydb.db" },
+        .open_flags = .{
+            .write = true,
+            .create = true,
+        },
+        .threading_mode = .Serialized, // I cant use multi thread because the HTTP server is already multi-threaded under the hood, making one thread managing multiple connections thus not allowing sqlite MultiThread
+    });
+    var app = App{ .db = &sqldb };
+    const ctx = .{ .app = &app, .user_id = null };
+    var web_test = ht.init(.{});
+    defer web_test.deinit();
+
+    try welcome(ctx, web_test.req, web_test.res);
+    try web_test.expectStatus(200);
 }
