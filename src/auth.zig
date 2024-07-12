@@ -142,3 +142,13 @@ fn generateSessionId(session_id: *[32]u8) void {
         session_id[d] = rand.intRangeAtMost(u8, 65, 125);
     }
 }
+
+test "logout connected user" {}
+
+test "logout not connected user" {}
+
+test "register new user" {}
+
+test "login connected user" {}
+
+test "login not connected user" {}

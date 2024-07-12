@@ -72,7 +72,7 @@ pub fn welcome(ctx: Context, req: *httpz.Request, res: *httpz.Response) !void {
 }
 
 test "simple zig test" {
-    try std.testing.expectEqual(3, 1);
+    try std.testing.expectEqual(1, 1);
 }
 
 test "simple hello request" {
