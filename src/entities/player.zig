@@ -8,7 +8,6 @@ username: []const u8,
 password: [32]u8,
 session_id: [32]u8,
 
-// TODO passer un alloc par parametre
 pub fn initPlayerBySessionId(db: *sqlite.Db, allocator: std.mem.Allocator, s_id: []const u8) !*Player {
     const query =
         \\SELECT id, username, password, session_id FROM player WHERE session_id = ?
@@ -25,4 +24,18 @@ pub fn initPlayerBySessionId(db: *sqlite.Db, allocator: std.mem.Allocator, s_id:
     return player;
 }
 
-pub fn initPlayerById() void {}
+pub fn initPlayerById(db: *sqlite.Db, allocator: std.mem.Allocator, id: usize) !*Player {
+    const query =
+        \\SELECT id, username, password, session_id FROM player WHERE id = ?
+    ;
+    var stmt = try db.prepare(query);
+    defer stmt.deinit();
+
+    const row = try stmt.oneAlloc(Player, allocator, .{}, .{ .id = id });
+    const player: *Player = try allocator.create(Player);
+    if (row) |r| {
+        player.* = r;
+    }
+
+    return player;
+}

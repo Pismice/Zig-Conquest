@@ -1,28 +1,22 @@
 const std = @import("std");
 const App = @import("app.zig");
+const Context = @import("context.zig");
 const Player = @import("entities/player.zig");
+const Village = @import("entities/village.zig");
 const httpz = @import("httpz");
 const sqlite = @import("sqlite");
 const helper = @import("helper.zig");
 
-pub fn logout(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
-    // 1. Get the connected user session_id cookie
-    var cookieBuffer: [256]u8 = undefined;
-
-    const session_id = helper.parseCookie(req, &cookieBuffer, "session_id") catch {
-        try res.json(.{ .message = "You are not connected" }, .{});
-        return;
-    };
-
-    // 2. SET session_id to NULL in the database
+pub fn logout(ctx: Context, req: *httpz.Request, res: *httpz.Response) !void {
+    _ = req;
     const query =
-        \\UPDATE player SET session_id = NULL WHERE session_id = ?
+        \\UPDATE player SET session_id = NULL WHERE id = ?
     ;
-    var stmt = try app.db.prepare(query);
+    var stmt = try ctx.app.db.prepare(query);
     defer stmt.deinit();
 
     try stmt.exec(.{}, .{
-        .session_id = session_id,
+        .id = ctx.user_id,
     });
 
     // 3. Delete the session_id cookie to the client
@@ -32,7 +26,7 @@ pub fn logout(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
     try res.json(.{ .message = "You are now disconnected" }, .{});
 }
 
-pub fn login(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
+pub fn login(ctx: Context, req: *httpz.Request, res: *httpz.Response) !void {
     // 1. Get the username and password from the user
     const fd = try req.formData();
     var username: []const u8 = undefined;
@@ -58,13 +52,10 @@ pub fn login(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
     const query =
         \\SELECT password FROM player WHERE username = ?
     ;
-    var stmt = try app.db.prepare(query);
+    var stmt = try ctx.app.db.prepare(query);
     defer stmt.deinit();
 
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
-    const row = try stmt.oneAlloc([]const u8, allocator, .{}, .{ .username = username });
+    const row = try stmt.oneAlloc([]const u8, req.arena, .{}, .{ .username = username });
     var server_hashed_password: [32]u8 = undefined;
     if (row) |hash| {
         server_hashed_password = hash[0..32].*;
@@ -82,7 +73,7 @@ pub fn login(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
     const query2 =
         \\UPDATE player SET session_id = ? WHERE username = ?
     ;
-    var stmt2 = try app.db.prepare(query2);
+    var stmt2 = try ctx.app.db.prepare(query2);
     defer stmt2.deinit();
 
     try stmt2.exec(.{}, .{
@@ -95,7 +86,7 @@ pub fn login(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
     try res.json(.{ .message = "You are now connected" }, .{});
 }
 
-pub fn register(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
+pub fn register(ctx: Context, req: *httpz.Request, res: *httpz.Response) !void {
     // 1. Get the username and password from the user
     const fd = try req.formData();
     var username: []const u8 = undefined;
@@ -123,30 +114,18 @@ pub fn register(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
     const query =
         \\ INSERT INTO player(username,password,session_id) VALUES(?,?,?);
     ;
-    var stmt = try app.db.prepare(query);
+    var stmt = try ctx.app.db.prepare(query);
     defer stmt.deinit();
     stmt.exec(.{}, .{ .username = username, .password = hashed_password, .session_id = session_id }) catch {
         try res.json(.{ .message = "Error while creating user: username probably already taken" }, .{});
         return;
     };
 
-    std.debug.print("Insert ok\n", .{});
-
     // 4. Get the id from the just created player
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
-    const player = try Player.initPlayerBySessionId(app.db, allocator, &session_id);
+    const player = try Player.initPlayerBySessionId(ctx.app.db, req.arena, &session_id);
 
     // 5. Create the village for the player
-    const query2 =
-        \\ INSERT INTO villages(name,player_id,x_position,y_position) VALUES(?,?,?,?);
-    ;
-    var stmt2 = try app.db.prepare(query2);
-    defer stmt2.deinit();
-    const vilage_name = std.fmt.allocPrint(allocator, "{s}' village", .{username}) catch return;
-    const positions = try findFreeSpaceForVillage(app.db);
-    stmt2.exec(.{}, .{ .name = vilage_name, .player_id = player.id, .x_position = positions[0], .y_position = positions[1] }) catch {
+    Village.createVillageForPlayer(ctx.app.db, req.arena, player.*) catch {
         try res.json(.{ .message = "Error while creating village" }, .{});
         return;
     };
@@ -162,39 +141,4 @@ fn generateSessionId(session_id: *[32]u8) void {
     for (0..32) |d| {
         session_id[d] = rand.intRangeAtMost(u8, 65, 125);
     }
-}
-
-fn findFreeSpaceForVillage(db: *sqlite.Db) !struct { u32, u32 } {
-    const rand = std.crypto.random;
-    var is_space_free: bool = false;
-    var x: u32 = undefined;
-    var y: u32 = undefined;
-    while (!is_space_free) {
-        is_space_free = true;
-        x = rand.intRangeAtMost(u32, 0, 100);
-        y = rand.intRangeAtMost(u32, 0, 100);
-        // Check if the space is free
-        const query =
-            \\SELECT x_position, y_position FROM villages
-        ;
-
-        var stmt = try db.prepare(query);
-        defer stmt.deinit();
-
-        const row = try stmt.one(
-            struct {
-                x_position: u32,
-                y_position: u32,
-            },
-            .{},
-            .{},
-        );
-        if (row) |r| {
-            if (x == r.x_position and y == r.y_position) {
-                is_space_free = false;
-                continue;
-            }
-        }
-    }
-    return .{ x, y };
 }
