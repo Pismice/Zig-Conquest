@@ -1,15 +1,16 @@
 const std = @import("std");
 const App = @import("app.zig");
+const Player = @import("entities/player.zig");
 const httpz = @import("httpz");
 const sqlite = @import("sqlite");
 const helper = @import("helper.zig");
 
 pub fn logout(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
     // 1. Get the connected user session_id cookie
-    var cookieBuffer: [128]u8 = undefined;
+    var cookieBuffer: [256]u8 = undefined;
 
     const session_id = helper.parseCookie(req, &cookieBuffer, "session_id") catch {
-        try res.json(.{ .message = "Cookie not found" }, .{});
+        try res.json(.{ .message = "You are not connected" }, .{});
         return;
     };
 
@@ -132,22 +133,12 @@ pub fn register(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
     std.debug.print("Insert ok\n", .{});
 
     // 4. Get the id from the just created player
-    const select_query =
-        \\SELECT id FROM player WHERE session_id = ?
-    ;
-    var select_stmt = try app.db.prepare(select_query);
-    defer select_stmt.deinit();
-
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
-    const row = try select_stmt.oneAlloc(usize, allocator, .{}, .{ .session_id = session_id });
-    var player_id: u64 = 0;
-    if (row) |r| {
-        player_id = r;
-    }
-    std.debug.print("Select ok\n", .{});
+    const player = try Player.initPlayerBySessionId(app.db, allocator, &session_id);
 
+    // 5. Create the village for the player
     const query2 =
         \\ INSERT INTO villages(name,player_id,x_position,y_position) VALUES(?,?,?,?);
     ;
@@ -155,15 +146,14 @@ pub fn register(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
     defer stmt2.deinit();
     const vilage_name = std.fmt.allocPrint(allocator, "{s}' village", .{username}) catch return;
     const positions = try findFreeSpaceForVillage(app.db);
-    stmt2.exec(.{}, .{ .name = vilage_name, .player_id = player_id, .x_position = positions[0], .y_position = positions[1] }) catch {
+    stmt2.exec(.{}, .{ .name = vilage_name, .player_id = player.id, .x_position = positions[0], .y_position = positions[1] }) catch {
         try res.json(.{ .message = "Error while creating village" }, .{});
         return;
     };
 
-    // 4. Send a response to the user with the cookie if successful or not
-    std.debug.print("session_id: {s}\n", .{session_id});
+    // 5. Send a response to the user with the cookie if successful or not
     res.headers.add("Set-Cookie", "session_id=" ++ session_id);
-    try res.json(.{ .message = "Success" }, .{});
+    try res.json(.{ .success = true }, .{});
 }
 
 fn generateSessionId(session_id: *[32]u8) void {
@@ -206,6 +196,5 @@ fn findFreeSpaceForVillage(db: *sqlite.Db) !struct { u32, u32 } {
             }
         }
     }
-    std.debug.print("Inserted {d} {d}", .{ x, y });
     return .{ x, y };
 }
