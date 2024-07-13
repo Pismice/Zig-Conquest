@@ -97,6 +97,7 @@ pub fn main() !void {
     connected.post("game/create_building", game.createBuilding);
     connected.post("game/upgrade_building", game.upgradeBuilding);
     connected.post("game/buy_units", game.buyUnits);
+    connected.post("game/attack", game.attackVillage);
 
     // Start workers
     _ = try std.Thread.spawn(.{}, ressourceProductionPolling, .{&sqldb});
