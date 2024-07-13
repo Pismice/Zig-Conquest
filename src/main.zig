@@ -58,7 +58,7 @@ fn ressourceProductionPolling(db: *sqlite.Db) !void {
         std.debug.print("Polling took {d}ms\n", .{elapsed});
 
         //std.debug.print("Polling done\n", .{});
-        std.time.sleep(5 * std.time.ns_per_s);
+        std.time.sleep(120 * std.time.ns_per_s);
     }
 }
 
@@ -95,6 +95,7 @@ pub fn main() !void {
     connected.post("auth/logout", auth.logout);
     connected.get("game/village", game.villageInfos);
     connected.post("game/create_building", game.createBuilding);
+    connected.post("game/upgrade_building", game.upgradeBuilding);
     connected.post("game/buy_units", game.buyUnits);
 
     // Start workers
