@@ -70,7 +70,7 @@ pub fn main() !void {
             .write = true,
             .create = true,
         },
-        .threading_mode = .Serialized, // I cant use multi thread because the HTTP server is already multi-threaded under the hood, making one thread managing multiple connections thus not allowing sqlite MultiThread
+        .threading_mode = .Serialized, // I cant use multi thread because the HTTP server handles multiple requests on the same thread at the same time
     });
     // Not used be could be I i want to access db faster
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};

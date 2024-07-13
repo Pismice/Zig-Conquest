@@ -6,6 +6,7 @@ const Village = @import("entities/village.zig");
 const httpz = @import("httpz");
 const sqlite = @import("sqlite");
 const helper = @import("helper.zig");
+const ht = httpz.testing;
 
 pub fn logout(ctx: Context, req: *httpz.Request, res: *httpz.Response) !void {
     _ = req;
@@ -147,7 +148,35 @@ test "logout connected user" {}
 
 test "logout not connected user" {}
 
-test "register new user" {}
+test "register new user" {
+    var sqldb = try sqlite.Db.init(.{
+        .mode = sqlite.Db.Mode{ .File = "mydb.db" },
+        .open_flags = .{
+            .write = true,
+            .create = true,
+        },
+        .threading_mode = .Serialized,
+    });
+    defer sqldb.deinit();
+    var c1 = try sqldb.savepoint("c1");
+    var app = App{ .db = c1.db };
+    const ctx = .{ .app = &app, .user_id = null };
+    var web_test = ht.init(.{});
+    defer web_test.deinit();
+
+    var q = try web_test.req.formData();
+    q.add("username", "pedro");
+    q.add("password", "1234");
+
+    web_test.req.fd = try httpz.key_value.KeyValue.init(std.testing.allocator, 10);
+    defer web_test.req.fd.deinit(std.testing.allocator);
+    web_test.req.fd.add("username", "john");
+    web_test.req.fd.add("password", "1234");
+    try register(ctx, web_test.req, web_test.res);
+    try web_test.expectStatus(200);
+    try web_test.expectJson(.{ .success = true });
+    c1.rollback();
+}
 
 test "login connected user" {}
 
