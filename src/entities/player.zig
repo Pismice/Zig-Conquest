@@ -24,6 +24,8 @@ pub fn initPlayerBySessionId(db: *sqlite.Db, allocator: std.mem.Allocator, s_id:
     const player: *Player = try allocator.create(Player);
     if (row) |r| {
         player.* = r;
+    } else {
+        return error.PlayerNotFoundInDb;
     }
 
     return player;

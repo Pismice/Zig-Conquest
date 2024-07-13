@@ -16,16 +16,50 @@ fn dis_conn(app: *App, action: httpz.Action(Context), req: *httpz.Request, res: 
         try res.json(.{ .message = "You are not connected !" }, .{});
         return;
     };
-    const player = try Player.initPlayerBySessionId(app.db, res.arena, session_id);
+    const player = Player.initPlayerBySessionId(app.db, res.arena, session_id) catch {
+        try res.json(.{ .message = "Your session expired !" }, .{});
+        return;
+    };
     const context = Context{
         .app = app,
         .user_id = player.id,
     };
+    print("Connected user {d}\n", .{player.id});
     return action(context, req, res);
 }
 
 fn dis_not_conn(app: *App, action: httpz.Action(Context), req: *httpz.Request, res: *httpz.Response) !void {
     return action(.{ .user_id = null, .app = app }, req, res);
+}
+
+fn ressourceProductionPolling(db: *sqlite.Db) !void {
+    while (true) {
+        //std.debug.print("Polling \n", .{});
+        const start = std.time.milliTimestamp();
+
+        const query =
+            \\ UPDATE villages
+            \\ SET gold = gold + subquery.total_rod
+            \\ FROM (
+            \\     SELECT villages.id AS village_id, SUM(productivity) AS total_rod
+            \\     FROM gold_mines
+            \\     INNER JOIN buildings ON building_id = buildings.id
+            \\     INNER JOIN villages ON villages.id = buildings.village_id
+            \\     GROUP BY villages.id
+            \\ ) AS subquery
+            \\ WHERE villages.id = subquery.village_id;
+        ;
+        var stmt = try db.prepareDynamic(query);
+        defer stmt.deinit();
+        try stmt.exec(.{}, .{});
+
+        const end = std.time.milliTimestamp();
+        const elapsed = end - start;
+        std.debug.print("Polling took {d}ms\n", .{elapsed});
+
+        //std.debug.print("Polling done\n", .{});
+        std.time.sleep(5 * std.time.ns_per_s);
+    }
 }
 
 pub fn main() !void {
@@ -56,10 +90,15 @@ pub fn main() !void {
     // Routes
     not_connected.get("/", welcome);
     not_connected.post("auth/register", auth.register);
+    not_connected.get("game/ranking", game.ranking);
     connected.post("auth/login", auth.login);
     connected.post("auth/logout", auth.logout);
     connected.get("game/village", game.villageInfos);
     connected.post("game/create_building", game.createBuilding);
+    connected.post("game/buy_units", game.buyUnits);
+
+    // Start workers
+    _ = try std.Thread.spawn(.{}, ressourceProductionPolling, .{&sqldb});
 
     // Start server
     try server.listen();

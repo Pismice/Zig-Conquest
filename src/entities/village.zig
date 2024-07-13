@@ -1,6 +1,8 @@
 const std = @import("std");
 const sqlite = @import("sqlite");
 const Player = @import("player.zig");
+const Building = @import("building.zig");
+const Army = @import("army.zig");
 
 const Village = @This();
 
@@ -17,6 +19,7 @@ pub fn initVillageByPlayerId(db: *sqlite.Db, allocator: std.mem.Allocator, playe
     const query =
         \\SELECT id, name, x_position, y_position, gold, level, space_capacity FROM villages WHERE player_id = ?
     ;
+    std.debug.print("query: {s}\n", .{query});
     var stmt = try db.prepare(query);
     defer stmt.deinit();
 
@@ -29,15 +32,42 @@ pub fn initVillageByPlayerId(db: *sqlite.Db, allocator: std.mem.Allocator, playe
     return village;
 }
 
+// pub fn getBuildings(self: *Village, db: *sqlite.Db, allocator: std.mem.Allocator) ![]Building {
+//     // TODO implement
+// }
+
+pub fn createBuilding(self: *Village, db: *sqlite.Db, allocator: std.mem.Allocator, comptime BuildingType: type, building: *BuildingType) !void {
+    switch (BuildingType) {
+        Building.GoldMine => |_| {
+            const gm: *Building.GoldMine = @ptrCast(building);
+            _ = allocator;
+
+            var c1 = try db.savepoint("c1");
+
+            try c1.db.execDynamic("INSERT INTO buildings(level,space_taken,village_id) VALUES(1,0,?);", .{}, .{self.id});
+            try c1.db.execDynamic("INSERT INTO gold_mines(building_id,productivity) VALUES(last_insert_rowid(),?);", .{}, .{gm.productivity});
+            c1.commit();
+        },
+        else => return error.UnkownBuildingType,
+    }
+}
+
 pub fn createVillageForPlayer(db: *sqlite.Db, allocator: std.mem.Allocator, player: Player) !void {
-    const query2 =
-        \\ INSERT INTO villages(name,player_id,x_position,y_position, gold, level, space_capacity) VALUES(?,?,?,?,?,?,?);
-    ;
-    var stmt = try db.prepare(query2);
-    defer stmt.deinit();
     const positions = try findFreeSpaceForVillage(db);
+
+    var c1 = try db.savepoint("c1");
+
+    try Army.createArmyForPlayer(c1.db, player.id);
+
+    const query2 =
+        \\ INSERT INTO villages(name,player_id,x_position,y_position, gold, level, space_capacity, army_id) VALUES(?,?,?,?,?,?,?,?);
+    ;
+    var stmt = try c1.db.prepare(query2);
+    defer stmt.deinit();
     const vilage_name = try std.fmt.allocPrint(allocator, "{s}' village", .{player.username});
-    try stmt.exec(.{}, .{ .name = vilage_name, .player_id = player.id, .x_position = positions[0], .y_position = positions[1], .gold = 100, .level = 1, .space_capacity = 5 });
+    try stmt.exec(.{}, .{ .name = vilage_name, .player_id = player.id, .x_position = positions[0], .y_position = positions[1], .gold = 100, .level = 1, .space_capacity = 5, .army_id = c1.db.getLastInsertRowID() });
+
+    c1.commit();
 }
 
 fn findFreeSpaceForVillage(db: *sqlite.Db) !struct { u32, u32 } {

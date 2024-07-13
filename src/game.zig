@@ -18,19 +18,26 @@ pub fn villageInfos(ctx: Context, req: *httpz.Request, res: *httpz.Response) !vo
 }
 
 pub fn createBuilding(ctx: Context, req: *httpz.Request, res: *httpz.Response) !void {
-    _ = req;
     var gm = Building.GoldMine{ .productivity = 1 };
-    Building.createBuilding(
-        ctx.app.db,
-        res.arena,
-        Building.GoldMine,
-        &gm,
-        ctx.user_id.?,
-    ) catch |err| {
+    const village = try Village.initVillageByPlayerId(ctx.app.db, req.arena, ctx.user_id.?);
+
+    village.createBuilding(ctx.app.db, req.arena, Building.GoldMine, &gm) catch |err| {
         std.debug.print("Error while creating building: {any}\n", .{err});
         try res.json(.{ .message = "Error while creating building :D" }, .{});
         return;
     };
 
     try res.json(.{ .message = "Building created" }, .{});
+}
+
+pub fn buyUnits(ctx: Context, req: *httpz.Request, res: *httpz.Response) !void {
+    _ = ctx;
+    _ = req;
+    try res.json(.{ .message = "Not implemented yet" }, .{});
+}
+
+pub fn ranking(ctx: Context, req: *httpz.Request, res: *httpz.Response) !void {
+    _ = req;
+    const players_ranking = try Player.ranking(ctx.app.db, res.arena);
+    try res.json(.{players_ranking}, .{});
 }
