@@ -62,7 +62,6 @@ pub fn persist(self: *Battle, db: *sqlite.Db) !void {
     );
 }
 
-// TODO bizzare d avoir mis self en const
 pub fn resolve(self: *Battle, db: *sqlite.Db, allocator: std.mem.Allocator) !void {
     var attacking_army = try Army.initArmyById(db, allocator, self.army_attacker_id);
     var defending_army = try Army.initArmyById(db, allocator, self.army_defender_id);
@@ -75,14 +74,16 @@ pub fn resolve(self: *Battle, db: *sqlite.Db, allocator: std.mem.Allocator) !voi
         // Check if the army was defending a village
         const eventual_defending_place = try defending_army.getDefendingPlace(db, allocator);
         if (eventual_defending_place) |defending_village| {
+            // Remove golds from the defending village
             self.gold_stolen = defending_village.gold;
-            defending_village.name = "JE SUIS PAUVRE";
-            defending_village.gold = 0;
             try defending_village.persist(db);
-            var attacker_village = try Village.initVillageByPlayerId(db, allocator, defending_village.player_id);
-            attacker_village.name = "JE SUIS RICHE";
+
+            // Give those golds to the attacker
+            var attacker_village = try Village.initVillageByPlayerId(db, allocator, attacking_army.player_id);
             attacker_village.gold += self.gold_stolen;
             try attacker_village.persist(db);
+
+            // Troops bilan
             self.defender_lost_units = defending_army.nb_cavalry + defending_army.nb_infantry + defending_army.nb_ranged;
             try defending_army.destory(db);
         }

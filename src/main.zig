@@ -72,14 +72,13 @@ fn eventsPolling(db: *sqlite.Db) !void {
         const allocator = arena.allocator();
         const allBattles = try Battle.getAllBattlesInOrder(db, allocator);
         var testTODO = try Village.initVillageById(db, allocator, 31);
-        testTODO.name = "test";
         try testTODO.persist(db);
         for (allBattles) |*battle| {
             // If the battle is over
             if (battle.duration + battle.time_start < std.time.timestamp()) {
                 if (battle.resolved == false) {
                     // Resolve the battle
-                    try battle.resolve(db, allocator); // FIXME cant do because somehow battle is const
+                    try battle.resolve(db, allocator);
                 }
             } else {
                 break; // this battle is not over so the next ones wont be either
