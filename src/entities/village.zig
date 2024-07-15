@@ -16,7 +16,7 @@ id: usize,
 name: []const u8,
 x_position: u32,
 y_position: u32,
-gold: u32,
+gold: u64,
 level: u16,
 space_capacity: u16,
 player_id: usize,
@@ -50,6 +50,15 @@ pub fn createAttackingArmy(self: *Village, db: *sqlite.Db, allocator: std.mem.Al
         .player_id = self.player_id,
     };
     return created_army;
+}
+
+pub fn persist(self: *Village, db: *sqlite.Db) !void {
+    const query =
+        \\UPDATE villages SET name = ?, x_position = ?, y_position = ?, gold = ?, level = ?, space_capacity = ?, player_id = ?, army_id = ? WHERE id = ?
+    ;
+    var stmt = try db.prepare(query);
+    defer stmt.deinit();
+    try stmt.exec(.{}, .{ .name = self.name, .x_position = self.x_position, .y_position = self.y_position, .gold = self.gold, .level = self.level, .space_capacity = self.space_capacity, .player_id = self.player_id, .army_id = self.army_id, .id = self.id });
 }
 
 pub fn initVillageById(db: *sqlite.Db, allocator: std.mem.Allocator, id: usize) !*Village {

@@ -6,6 +6,9 @@ const auth = @import("auth.zig");
 const game = @import("game.zig");
 const App = @import("app.zig");
 const Player = @import("entities/player.zig");
+const Village = @import("entities/village.zig");
+const Event = @import("entities/event.zig");
+const Battle = @import("entities/battle.zig");
 const Context = @import("context.zig");
 const ht = @import("httpz").testing;
 const print = std.debug.print;
@@ -62,6 +65,31 @@ fn ressourceProductionPolling(db: *sqlite.Db) !void {
     }
 }
 
+fn eventsPolling(db: *sqlite.Db) !void {
+    while (true) {
+        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer arena.deinit();
+        const allocator = arena.allocator();
+        const allBattles = try Battle.getAllBattlesInOrder(db, allocator);
+        var testTODO = try Village.initVillageById(db, allocator, 31);
+        testTODO.name = "test";
+        try testTODO.persist(db);
+        for (allBattles) |*battle| {
+            // If the battle is over
+            if (battle.duration + battle.time_start < std.time.timestamp()) {
+                if (battle.resolved == false) {
+                    // Resolve the battle
+                    try battle.resolve(db, allocator); // FIXME cant do because somehow battle is const
+                }
+            } else {
+                break; // this battle is not over so the next ones wont be either
+            }
+        }
+
+        std.time.sleep(5 * std.time.ns_per_s);
+    }
+}
+
 pub fn main() !void {
     // Open SQLite database
     var sqldb = try sqlite.Db.init(.{
@@ -101,6 +129,7 @@ pub fn main() !void {
 
     // Start workers
     _ = try std.Thread.spawn(.{}, ressourceProductionPolling, .{&sqldb});
+    _ = try std.Thread.spawn(.{}, eventsPolling, .{&sqldb});
 
     // Start server
     try server.listen();

@@ -149,6 +149,7 @@ test "logout connected user" {}
 test "logout not connected user" {}
 
 test "register new user" {
+    // FROM HERE
     var sqldb = try sqlite.Db.init(.{
         .mode = sqlite.Db.Mode{ .File = "mydb.db" },
         .open_flags = .{
@@ -163,15 +164,17 @@ test "register new user" {
     const ctx = .{ .app = &app, .user_id = null };
     var web_test = ht.init(.{});
     defer web_test.deinit();
+    // TO HERE
 
-    var q = try web_test.req.formData();
-    q.add("username", "pedro");
-    q.add("password", "1234");
+    //var q = try web_test.req.formData();
+    //q.add("username", "pedro");
+    //q.add("password", "1234");
 
     web_test.req.fd = try httpz.key_value.KeyValue.init(std.testing.allocator, 10);
     defer web_test.req.fd.deinit(std.testing.allocator);
     web_test.req.fd.add("username", "john");
     web_test.req.fd.add("password", "1234");
+
     try register(ctx, web_test.req, web_test.res);
     try web_test.expectStatus(200);
     try web_test.expectJson(.{ .success = true });

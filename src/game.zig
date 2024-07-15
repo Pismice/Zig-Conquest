@@ -69,6 +69,9 @@ pub fn attackVillage(ctx: Context, req: *httpz.Request, res: *httpz.Response) !v
         .army_defender_id = target_army.id,
         .gold_stolen = 0,
         .event_id = 0,
+        .time_start = std.time.timestamp(),
+        .duration = 10,
+        .resolved = false,
     };
     try Battle.createBattle(ctx.app.db, battle);
 
