@@ -16,12 +16,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Install Zig
+      - name: Install Zig and run tests
         run: |
           curl -L -o zig-linux-x86_64-0.13.0.tar.xz https://ziglang.org/download/0.13.0/zig-linux-x86_64-0.13.0.tar.xz
           tar -xf zig-linux-x86_64-0.13.0.tar.xz
-          sudo mv zig-linux-x86_64-0.13.0/zig /usr/local/bin/zig
-
-      - name: Build and Test
-        run: |
-          zig build test
+          ./zig-linux-x86_64-0.13.0/zig build test
