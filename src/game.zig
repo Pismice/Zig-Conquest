@@ -74,9 +74,6 @@ pub fn attackVillage(ctx: Context, req: *httpz.Request, res: *httpz.Response) !v
         .resolved = false,
     };
     try Battle.createBattle(ctx.app.db, battle);
-
-    // TODO process the attack (battle) /event
-
     try res.json(.{ .message = "You army is on the way" }, .{});
 }
 

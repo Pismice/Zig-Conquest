@@ -80,7 +80,6 @@ pub fn initVillageById(db: *sqlite.Db, allocator: std.mem.Allocator, id: usize) 
     return village;
 }
 
-// TODO passer un alloc par parametre
 pub fn initVillageByPlayerId(db: *sqlite.Db, allocator: std.mem.Allocator, player_id: usize) !*Village {
     const query =
         \\SELECT id, name, x_position, y_position, gold, level, space_capacity, player_id, army_id FROM villages WHERE player_id = ?

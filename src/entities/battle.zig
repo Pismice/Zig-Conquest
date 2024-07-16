@@ -6,19 +6,6 @@ const Village = @import("village.zig");
 
 const Battle = @This();
 
-const RawBattle = struct {
-    event_id: usize,
-    army_attacker_id: usize,
-    army_defender_id: usize,
-    gold_stolen: u64,
-    attacker_lost_units: u64,
-    defender_lost_units: u64,
-    time_start: i64,
-    duration: i64,
-    resolved: bool,
-};
-// TODO pas besoin des 2 structs
-
 army_attacker_id: usize,
 army_defender_id: usize,
 gold_stolen: u64,
@@ -123,60 +110,16 @@ pub fn createBattle(db: *sqlite.Db, battle: Battle) !void {
     errdefer c1.rollback();
 }
 
-// pub fn initBattleById(db: *sqlite.Db, allocator: std.mem.Allocator, id: usize) !*Battle {
-//     const query =
-//         \\ select army_attacker_id, army_defender_id, gold_stolen, attacker_lost_units, defender_lost_units, event_id from battles
-//         \\ inner join events on events.id = battles.event_id
-//         \\ where event_id = ?
-//     ;
-//     var stmt = try db.prepare(query);
-//     defer stmt.deinit();
-//
-//     const row = try stmt.oneAlloc(Battle, allocator, .{}, .{ .event_id = id });
-//     const battle: *Battle = try allocator.create(Battle);
-//     if (row) |r| {
-//         battle.* = r;
-//     } else {
-//         return error.NotBattleFound;
-//     }
-//
-//     return battle;
-// }
-
 pub fn getAllBattlesInOrder(db: *sqlite.Db, allocator: std.mem.Allocator) ![]Battle {
-    var c1 = try db.savepoint("c1");
-    defer c1.commit();
-    errdefer c1.rollback();
-
-    const q = " select count(event_id) from battles inner join events on events.id = battles.event_id limit 1000";
-    var s = try c1.db.prepare(q);
-    defer s.deinit();
-    const count = try s.one(i64, .{}, .{});
-
     const query =
-        \\ select event_id, army_attacker_id, army_defender_id, gold_stolen, attacker_lost_units, defender_lost_units, time_start, duration, resolved from battles
+        \\ select army_attacker_id, army_defender_id, gold_stolen, attacker_lost_units, defender_lost_units, event_id, time_start, duration, resolved
+        \\ from battles
         \\ inner join events on events.id = battles.event_id
         \\ order by (time_start + duration) 
     ;
-    var stmt = try c1.db.prepare(query);
+    var stmt = try db.prepare(query);
     defer stmt.deinit();
-    const raw_battles = try stmt.all(RawBattle, allocator, .{}, .{});
-    var battles: []Battle = try allocator.alloc(Battle, @intCast(count.?));
-    for (raw_battles, 0..) |raw_battle, i| {
-        // TODO event
-        const event_battle = try Event.initEvent(c1.db, raw_battle.event_id);
-        battles[i] = Battle{
-            .army_attacker_id = raw_battle.army_attacker_id,
-            .army_defender_id = raw_battle.army_defender_id,
-            .gold_stolen = raw_battle.gold_stolen,
-            .attacker_lost_units = raw_battle.attacker_lost_units,
-            .defender_lost_units = raw_battle.defender_lost_units,
-            .event_id = raw_battle.event_id,
-            .time_start = event_battle.time_start,
-            .duration = event_battle.duration,
-            .resolved = event_battle.resolved,
-        };
-    }
+    const battles = try stmt.all(Battle, allocator, .{}, .{});
 
     return battles;
 }

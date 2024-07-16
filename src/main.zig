@@ -71,8 +71,6 @@ fn eventsPolling(db: *sqlite.Db) !void {
         defer arena.deinit();
         const allocator = arena.allocator();
         const allBattles = try Battle.getAllBattlesInOrder(db, allocator);
-        var testTODO = try Village.initVillageById(db, allocator, 31);
-        try testTODO.persist(db);
         for (allBattles) |*battle| {
             // If the battle is over
             if (battle.duration + battle.time_start < std.time.timestamp()) {
@@ -99,9 +97,15 @@ pub fn main() !void {
         },
         .threading_mode = .Serialized, // I cant use multi thread because the HTTP server handles multiple requests on the same thread at the same time
     });
-    // Not used be could be I i want to access db faster
+    // Switch to heap page allocator for best performances
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
+    defer {
+        const deinit_status = gpa.deinit();
+        if (deinit_status == .leak) {
+            std.debug.print("Memory leak detected\n", .{});
+        }
+    }
 
     // Global app context/state
     var app = App{ .db = &sqldb };
