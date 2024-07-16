@@ -104,8 +104,11 @@ pub fn main() !void {
         const deinit_status = gpa.deinit();
         if (deinit_status == .leak) {
             std.debug.print("Memory leak detected\n", .{});
+        } else {
+            std.debug.print("Memory freed correctly\n", .{});
         }
     }
+    _ = try allocator.alloc(u8, 100);
 
     // Global app context/state
     var app = App{ .db = &sqldb };
@@ -113,7 +116,9 @@ pub fn main() !void {
     // Server config
     var server = try httpz.ServerCtx(*App, Context).init(allocator, .{ .port = 1950 }, &app);
     server.config.request.max_form_count = 20;
+    defer server.deinit();
     var router = server.router();
+    defer router.deinit(allocator);
 
     var not_connected = router.group("", .{ .dispatcher = dis_not_conn, .ctx = &app });
     var connected = router.group("", .{ .dispatcher = dis_conn, .ctx = &app });
@@ -134,11 +139,31 @@ pub fn main() !void {
     _ = try std.Thread.spawn(.{}, ressourceProductionPolling, .{&sqldb});
     _ = try std.Thread.spawn(.{}, eventsPolling, .{&sqldb});
 
+    // Thank you https://github.com/sphaerophoria/ball-machine/blob/5b2083355d7b2202fb0f0b4b98f54811e5b0a6fb/src/main.zig#L301
+    var sa = std.posix.Sigaction{
+        .handler = .{
+            .handler = &signal_handler,
+        },
+        .mask = std.posix.empty_sigset,
+        .flags = 0,
+    };
+    try std.posix.sigaction(std.posix.SIG.INT, &sa, null);
+
     // Start server
-    try server.listen();
+    const start_time = std.time.timestamp();
+    defer {
+        server.stop();
+        std.debug.print("Server stopped after {d} seconds\n", .{std.time.timestamp() - start_time});
+    }
+    try server.listen(); // Blocking call
 }
 
-pub fn welcome(ctx: Context, req: *httpz.Request, res: *httpz.Response) !void {
+fn signal_handler(_: c_int) align(1) callconv(.C) void {
+    // TODO no idea how to do all of my defer except having them all as global variables, if that is the case I cant find what the type of ServerCtx.init is (server variable)
+    std.debug.print("Received SIGINT\n", .{});
+}
+
+fn welcome(ctx: Context, req: *httpz.Request, res: *httpz.Response) !void {
     const players = try Player.ranking(ctx.app.db, req.arena);
     const msg = try std.fmt.allocPrint(res.arena, "Welcome to my game which currently has {d} players !", .{players.len});
     try res.json(.{msg}, .{});
