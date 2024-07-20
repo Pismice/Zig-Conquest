@@ -3,6 +3,7 @@ const App = @import("app.zig");
 const Context = @import("context.zig");
 const Player = @import("entities/player.zig");
 const Event = @import("entities/event.zig");
+const RessourcesTransfer = @import("entities/ressources_transfer.zig");
 const Battle = @import("entities/battle.zig");
 const Village = @import("entities/village.zig");
 const Building = @import("entities/building.zig");
@@ -68,13 +69,68 @@ pub fn attackVillage(ctx: Context, req: *httpz.Request, res: *httpz.Response) !v
         .army_attacker_id = attacking_army.id,
         .army_defender_id = target_army.id,
         .gold_stolen = 0,
-        .event_id = 0,
+        .event_battle_id = 0,
         .time_start = std.time.timestamp(),
         .duration = 10,
         .resolved = false,
     };
     try Battle.createBattle(ctx.app.db, battle);
     try res.json(.{ .message = "You army is on the way" }, .{});
+}
+
+pub fn giveRessources(ctx: Context, req: *httpz.Request, res: *httpz.Response) !void {
+    // Get the village id from the request
+    const RessourcesTransferInfo = struct {
+        source_village_id: usize = 0,
+        target_village_id: usize = 0,
+        gold_wanted_to_give: u64 = 0,
+    };
+    var ressourcesTransferInfos = RessourcesTransferInfo{};
+    if (try req.json(RessourcesTransferInfo)) |ressource_transfer_request| {
+        ressourcesTransferInfos.target_village_id = ressource_transfer_request.target_village_id;
+        ressourcesTransferInfos.source_village_id = ressource_transfer_request.source_village_id;
+        ressourcesTransferInfos.gold_wanted_to_give = ressource_transfer_request.gold_wanted_to_give;
+    } else {
+        try res.json(.{ .success = "false", .message = "No village id was provided" }, .{});
+        return;
+    }
+
+    // Fetch the target village
+    const target_village = try Village.initVillageById(ctx.app.db, res.arena, ressourcesTransferInfos.target_village_id);
+    if (target_village.player_id == ctx.user_id.?) {
+        try res.json(.{ .success = "false", .message = "You cannot give yourself ressources" }, .{});
+        return;
+    }
+
+    // Fetch the source village
+    const source_village = try Village.initVillageById(ctx.app.db, res.arena, ressourcesTransferInfos.source_village_id);
+    if (source_village.player_id != ctx.user_id.?) {
+        try res.json(.{ .success = "false", .message = "The source village is not yours" }, .{});
+        return;
+    }
+
+    // Verify that target village has enough ressources
+    if (source_village.gold < ressourcesTransferInfos.gold_wanted_to_give) {
+        try res.json(.{ .success = "false", .message = "Not enough ressources" }, .{});
+        return;
+    }
+    source_village.gold -= ressourcesTransferInfos.gold_wanted_to_give;
+    try source_village.persist(ctx.app.db);
+
+    // Create battle between the 2 armies
+    const ressources_transfer = RessourcesTransfer{
+        .giver_village_id = source_village.id,
+        .receiver_village_id = target_village.id,
+        .golds_given = ressourcesTransferInfos.gold_wanted_to_give,
+        .event_ressources_transfer_id = 0,
+        .time_start = std.time.timestamp(),
+        .duration = 10,
+        .resolved = false,
+    };
+
+    RessourcesTransfer.createRessourcesTransfer(ctx.app.db, ressources_transfer) catch return error.ErrorCreatingTheEventInDb;
+
+    try res.json(.{ .success = "true", .message = "Your caravan is on the way" }, .{});
 }
 
 pub fn villageInfos(ctx: Context, req: *httpz.Request, res: *httpz.Response) !void {
@@ -93,11 +149,11 @@ pub fn createBuilding(ctx: Context, req: *httpz.Request, res: *httpz.Response) !
 
     village.createBuilding(ctx.app.db, req.arena, Building.GoldMine, &gm) catch |err| {
         std.debug.print("Error while creating building: {any}\n", .{err});
-        try res.json(.{ .message = "Error while creating building :D" }, .{});
+        try res.json(.{ .success = false, .message = "not enough ressources" }, .{});
         return;
     };
 
-    try res.json(.{ .message = "Building created" }, .{});
+    try res.json(.{ .success = true }, .{});
 }
 
 pub fn upgradeBuilding(ctx: Context, req: *httpz.Request, res: *httpz.Response) !void {
@@ -109,7 +165,7 @@ pub fn upgradeBuilding(ctx: Context, req: *httpz.Request, res: *httpz.Response) 
     if (try req.json(BuildingInfos)) |building| {
         b_id = building.building_id;
     } else {
-        try res.json(.{ .message = "No building id was provided" }, .{});
+        try res.json(.{ .success = false, .message = "no building id was provided" }, .{});
         return;
     }
 
@@ -120,7 +176,7 @@ pub fn upgradeBuilding(ctx: Context, req: *httpz.Request, res: *httpz.Response) 
     const owner_id = try building.getOwnerPlayerId(ctx.app.db);
     if (owner_id != ctx.user_id.?) {
         std.debug.print("User {d} /= {d}\n", .{ ctx.user_id.?, owner_id });
-        try res.json(.{ .message = "You are not the owner of this building" }, .{});
+        try res.json(.{ .success = false, .message = "you are not the owner of this building" }, .{});
         // TODO report this because it proably is malicious activity
         return;
     }
@@ -128,10 +184,10 @@ pub fn upgradeBuilding(ctx: Context, req: *httpz.Request, res: *httpz.Response) 
     // Upgrade the building
     building.upgradeBuilding(ctx.app.db) catch |err| {
         if (err == error.NotEnoughRessources) {
-            try res.json(.{ .message = "Not enough ressources" }, .{});
+            try res.json(.{ .success = false, .message = "not enough ressources" }, .{});
             return;
         }
-        try res.json(.{ .message = "Unexcepted error occured while upgrading the building" }, .{});
+        try res.json(.{ .success = false, .message = "unexcepted error occured while upgrading the building" }, .{});
         return;
     };
     try res.json(.{ .success = true }, .{});

@@ -58,34 +58,37 @@ fn ressourceProductionPolling(db: *sqlite.Db) !void {
 
         const end = std.time.milliTimestamp();
         const elapsed = end - start;
-        std.debug.print("Polling took {d}ms\n", .{elapsed});
+        std.debug.print("Ressources polling took {d}ms\n", .{elapsed});
 
-        //std.debug.print("Polling done\n", .{});
-        std.time.sleep(120 * std.time.ns_per_s);
+        std.time.sleep(60 * std.time.ns_per_s);
     }
 }
 
 fn eventsPolling(db: *sqlite.Db) !void {
     while (true) {
+        const start = std.time.milliTimestamp();
         var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
         defer arena.deinit();
         const allocator = arena.allocator();
-        const allBattles = try Battle.getAllBattlesInOrder(db, allocator);
-        for (allBattles) |*battle| {
-            // If the battle is over
-            if (battle.duration + battle.time_start < std.time.timestamp()) {
-                if (battle.resolved == false) {
-                    // Resolve the battle
-                    try battle.resolve(db, allocator);
-                }
+
+        const events = try Event.getAllTheNextEvents(db, allocator);
+        for (events) |event| {
+            if (try event.getRemainingTime() <= 0) {
+                try event.executeEvent(db, allocator);
             } else {
-                break; // this battle is not over so the next ones wont be either
+                break; // this event is not over so the next ones wont be either
             }
         }
-
+        const end = std.time.milliTimestamp();
+        const elapsed = end - start;
+        std.debug.print("Events polling took {d}ms\n", .{elapsed});
         std.time.sleep(5 * std.time.ns_per_s);
     }
 }
+
+var server: httpz.ServerCtx(*App, Context) = undefined;
+var start_time: i64 = 0;
+var gpa: std.heap.GeneralPurposeAllocator(.{}) = undefined;
 
 pub fn main() !void {
     // Open SQLite database
@@ -98,27 +101,18 @@ pub fn main() !void {
         .threading_mode = .Serialized, // I cant use multi thread because the HTTP server handles multiple requests on the same thread at the same time
     });
     // Switch to heap page allocator for best performances
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
-    defer {
-        const deinit_status = gpa.deinit();
-        if (deinit_status == .leak) {
-            std.debug.print("Memory leak detected\n", .{});
-        } else {
-            std.debug.print("Memory freed correctly\n", .{});
-        }
-    }
     _ = try allocator.alloc(u8, 100);
 
     // Global app context/state
     var app = App{ .db = &sqldb };
 
     // Server config
-    var server = try httpz.ServerCtx(*App, Context).init(allocator, .{ .port = 1950 }, &app);
+    server = try httpz.ServerCtx(*App, Context).init(allocator, .{ .port = 1950 }, &app);
     server.config.request.max_form_count = 20;
-    defer server.deinit();
     var router = server.router();
-    defer router.deinit(allocator);
+    //    defer router.deinit(allocator);
 
     var not_connected = router.group("", .{ .dispatcher = dis_not_conn, .ctx = &app });
     var connected = router.group("", .{ .dispatcher = dis_conn, .ctx = &app });
@@ -134,6 +128,7 @@ pub fn main() !void {
     connected.post("game/upgrade_building", game.upgradeBuilding);
     connected.post("game/buy_units", game.buyUnits);
     connected.post("game/attack", game.attackVillage);
+    connected.post("game/give_ressources", game.giveRessources);
 
     // Start workers
     _ = try std.Thread.spawn(.{}, ressourceProductionPolling, .{&sqldb});
@@ -150,17 +145,26 @@ pub fn main() !void {
     try std.posix.sigaction(std.posix.SIG.INT, &sa, null);
 
     // Start server
-    const start_time = std.time.timestamp();
-    defer {
-        server.stop();
-        std.debug.print("Server stopped after {d} seconds\n", .{std.time.timestamp() - start_time});
-    }
+    start_time = std.time.timestamp();
+
     try server.listen(); // Blocking call
 }
 
+// Equivalent to a defer for the main function
 fn signal_handler(_: c_int) align(1) callconv(.C) void {
-    // TODO no idea how to do all of my defer except having them all as global variables, if that is the case I cant find what the type of ServerCtx.init is (server variable)
     std.debug.print("Received SIGINT\n", .{});
+
+    server.stop();
+    std.debug.print("Server stopped after {d} seconds\n", .{std.time.timestamp() - start_time});
+    server.deinit();
+
+    //    const deinit_status = gpa.deinit();
+    //    if (deinit_status == .leak) {
+    //        std.debug.print("Memory leak detected\n", .{});
+    //    } else {
+    //        std.debug.print("Memory freed correctly\n", .{});
+    //    }
+    std.process.exit(0); // important in order to kill all the pollings threads
 }
 
 fn welcome(ctx: Context, req: *httpz.Request, res: *httpz.Response) !void {

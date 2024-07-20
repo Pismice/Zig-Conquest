@@ -111,6 +111,8 @@ pub fn createBuilding(self: *Village, db: *sqlite.Db, allocator: std.mem.Allocat
 
             var c1 = try db.savepoint("c1");
 
+            // TODO verify enough gold and space in the village
+
             try c1.db.execDynamic("INSERT INTO buildings(level,space_taken,village_id) VALUES(1,0,?);", .{}, .{self.id});
             try c1.db.execDynamic("INSERT INTO gold_mines(building_id,productivity) VALUES(last_insert_rowid(),?);", .{}, .{gm.productivity});
             c1.commit();
@@ -119,7 +121,7 @@ pub fn createBuilding(self: *Village, db: *sqlite.Db, allocator: std.mem.Allocat
     }
 }
 
-// TODO move to player.zig
+// TODO move to player.zig ?
 pub fn createVillageForPlayer(db: *sqlite.Db, allocator: std.mem.Allocator, player: Player) !void {
     const positions = try findFreeSpaceForVillage(db);
 

@@ -174,7 +174,6 @@ test "register new user" {
     defer web_test.req.fd.deinit(std.testing.allocator);
     web_test.req.fd.add("username", "john");
     web_test.req.fd.add("password", "1234");
-
     try register(ctx, web_test.req, web_test.res);
     try web_test.expectStatus(200);
     try web_test.expectJson(.{ .success = true });
