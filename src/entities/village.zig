@@ -110,7 +110,19 @@ pub fn createBuilding(self: *Village, db: *sqlite.Db, allocator: std.mem.Allocat
             _ = allocator;
 
             var c1 = try db.savepoint("c1");
+            if (self.gold < 50) {
+                return error.NotEnoughGold;
+            } else {
+                self.gold -= 50;
+            }
 
+            if (self.space_capacity < 1) {
+                return error.NotEnoughSpace;
+            } else {
+                self.space_capacity -= 1;
+            }
+
+            try self.persist(c1.db);
             // TODO verify enough gold and space in the village
 
             try c1.db.execDynamic("INSERT INTO buildings(level,space_taken,village_id) VALUES(1,0,?);", .{}, .{self.id});

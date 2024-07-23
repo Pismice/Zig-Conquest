@@ -42,6 +42,15 @@ pub fn executeEventFn(ptr: *anyopaque, db: *sqlite.Db, allocator: std.mem.Alloca
             attacker_village.gold += self.gold_stolen;
             try attacker_village.persist(db);
 
+            // Give the troops back to the attackers
+            var local_army = try attacker_village.getArmy(db, allocator);
+            local_army.nb_ranged += attacking_army.nb_ranged;
+            local_army.nb_cavalry += attacking_army.nb_cavalry;
+            local_army.nb_infantry += attacking_army.nb_infantry;
+
+            // Delete attacking army since it went back to the village
+            try attacking_army.delete(db);
+
             // Troops bilan
             self.defender_lost_units = defending_army.nb_cavalry + defending_army.nb_infantry + defending_army.nb_ranged;
             try defending_army.destory(db);

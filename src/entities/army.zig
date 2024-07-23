@@ -57,6 +57,24 @@ pub fn getDefendingPlace(self: *Army, db: *sqlite.Db, allocator: std.mem.Allocat
     }
 }
 
+pub fn persist(self: *Army, db: *sqlite.Db) !void {
+    const query =
+        \\ UPDATE armies SET nb_ranged = ?, nb_cavalry = ?, nb_infantry = ? WHERE id = ?
+    ;
+    var stmt = try db.prepare(query);
+    defer stmt.deinit();
+    try stmt.exec(.{}, .{ .nb_ranged = self.nb_ranged, .nb_cavalry = self.nb_cavalry, .nb_infantry = self.nb_infantry, .id = self.id });
+}
+
+pub fn delete(self: *Army, db: *sqlite.Db) !void {
+    const query =
+        \\ DELETE FROM armies WHERE id = ?
+    ;
+    var stmt = try db.prepare(query);
+    defer stmt.deinit();
+    try stmt.exec(.{}, .{ .id = self.id });
+}
+
 pub fn destory(self: *Army, db: *sqlite.Db) !void {
     const query =
         \\ UPDATE armies SET nb_ranged = 0, nb_cavalry = 0, nb_infantry = 0 WHERE id = ?

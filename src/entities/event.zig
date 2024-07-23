@@ -5,6 +5,7 @@ const ResourcesTransfer = @import("ressources_transfer.zig");
 
 const Event = @This();
 
+// Used to fetch only the Event and not all the interfaces related stuff
 const RawEvent = struct {
     id: usize,
     time_start: i64,
@@ -40,7 +41,7 @@ pub fn initEvent(db: *sqlite.Db, id: usize) !RawEvent {
 
 pub fn getRemainingTime(self: Event) !i64 {
     // negative value means the event is over
-    return std.time.timestamp() - self.time_start;
+    return self.time_start - std.time.timestamp();
 }
 
 pub fn executeEvent(self: Event, db: *sqlite.Db, allocator: std.mem.Allocator) !void {

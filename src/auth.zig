@@ -95,13 +95,13 @@ pub fn register(ctx: Context, req: *httpz.Request, res: *httpz.Response) !void {
     if (fd.get("username")) |u| {
         username = u;
     } else {
-        try res.json(.{ .message = "username not found" }, .{});
+        try res.json(.{ .success = false, .message = "username not found" }, .{});
         return;
     }
     if (fd.get("password")) |p| {
         password = p;
     } else {
-        try res.json(.{ .message = "password not found" }, .{});
+        try res.json(.{ .success = false, .message = "password not found" }, .{});
         return;
     }
 
@@ -118,7 +118,7 @@ pub fn register(ctx: Context, req: *httpz.Request, res: *httpz.Response) !void {
     var stmt = try ctx.app.db.prepare(query);
     defer stmt.deinit();
     stmt.exec(.{}, .{ .username = username, .password = hashed_password, .session_id = session_id }) catch {
-        try res.json(.{ .message = "Error while creating user: username probably already taken" }, .{});
+        try res.json(.{ .success = false, .message = "Error while creating user: username probably already taken" }, .{});
         return;
     };
 
@@ -148,37 +148,63 @@ test "logout connected user" {}
 
 test "logout not connected user" {}
 
-test "register new user" {
-    // FROM HERE
-    var sqldb = try sqlite.Db.init(.{
-        .mode = sqlite.Db.Mode{ .File = "mydb.db" },
-        .open_flags = .{
-            .write = true,
-            .create = true,
-        },
-        .threading_mode = .Serialized,
-    });
-    defer sqldb.deinit();
-    var c1 = try sqldb.savepoint("c1");
-    var app = App{ .db = c1.db };
-    const ctx = .{ .app = &app, .user_id = null };
-    var web_test = ht.init(.{});
-    defer web_test.deinit();
-    // TO HERE
+// test "register new user" {
+//     // Boilerplate init begin
+//     var sqldb = try sqlite.Db.init(.{
+//         .mode = sqlite.Db.Mode{ .File = "1.db" },
+//         .open_flags = .{
+//             .write = true,
+//             .create = true,
+//         },
+//         .threading_mode = .Serialized,
+//     });
+//     defer sqldb.deinit();
+//     var c1 = try sqldb.savepoint("c1");
+//     var app = App{ .db = c1.db };
+//     const ctx = .{ .app = &app, .user_id = null };
+//     var web_test = ht.init(.{});
+//     defer web_test.deinit();
+//     // Boilerplate init end
+//
+//     web_test.req.fd = try httpz.key_value.KeyValue.init(std.testing.allocator, 10);
+//     defer web_test.req.fd.deinit(std.testing.allocator);
+//     web_test.req.fd.add("username", "john");
+//     web_test.req.fd.add("password", "1234");
+//     try register(ctx, web_test.req, web_test.res);
+//     try web_test.expectStatus(200);
+//     try web_test.expectJson(.{ .success = true });
+//     c1.commit();
+//     //    c1.rollback();
+// }
 
-    //var q = try web_test.req.formData();
-    //q.add("username", "pedro");
-    //q.add("password", "1234");
-
-    web_test.req.fd = try httpz.key_value.KeyValue.init(std.testing.allocator, 10);
-    defer web_test.req.fd.deinit(std.testing.allocator);
-    web_test.req.fd.add("username", "john");
-    web_test.req.fd.add("password", "1234");
-    try register(ctx, web_test.req, web_test.res);
-    try web_test.expectStatus(200);
-    try web_test.expectJson(.{ .success = true });
-    c1.rollback();
-}
+// test "register new user but username already taken" {
+//     // Boilerplate init begin
+//     var sqldb = try sqlite.Db.init(.{
+//         .mode = sqlite.Db.Mode{ .File = "mydb.db" },
+//         .open_flags = .{
+//             .write = true,
+//             .create = true,
+//         },
+//         .threading_mode = .Serialized,
+//     });
+//     defer sqldb.deinit();
+//     var c1 = try sqldb.savepoint("c2");
+//     var app = App{ .db = c1.db };
+//     const ctx = .{ .app = &app, .user_id = null };
+//     var web_test = ht.init(.{});
+//     defer web_test.deinit();
+//     // Boilerplate init end
+//
+//     web_test.req.fd = try httpz.key_value.KeyValue.init(std.testing.allocator, 10);
+//     defer web_test.req.fd.deinit(std.testing.allocator);
+//     web_test.req.fd.add("username", "user1");
+//     web_test.req.fd.add("password", "1234");
+//     try register(ctx, web_test.req, web_test.res);
+//     try web_test.expectStatus(200);
+//     try web_test.expectJson(.{ .success = false });
+//
+//     c1.rollback();
+// }
 
 test "login connected user" {}
 

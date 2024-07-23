@@ -6,6 +6,7 @@ const auth = @import("auth.zig");
 const game = @import("game.zig");
 const App = @import("app.zig");
 const Player = @import("entities/player.zig");
+const Building = @import("entities/building.zig");
 const Village = @import("entities/village.zig");
 const Event = @import("entities/event.zig");
 const Battle = @import("entities/battle.zig");
@@ -158,7 +159,7 @@ fn signal_handler(_: c_int) align(1) callconv(.C) void {
     std.debug.print("Server stopped after {d} seconds\n", .{std.time.timestamp() - start_time});
     server.deinit();
 
-    //    const deinit_status = gpa.deinit();
+    //_ = gpa.deinit();
     //    if (deinit_status == .leak) {
     //        std.debug.print("Memory leak detected\n", .{});
     //    } else {

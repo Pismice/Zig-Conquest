@@ -34,14 +34,14 @@ pub fn attackVillage(ctx: Context, req: *httpz.Request, res: *httpz.Response) !v
     // Fetch the target village
     const target_village = try Village.initVillageById(ctx.app.db, res.arena, attackInfos.target_village_id);
     if (target_village.player_id == ctx.user_id.?) {
-        try res.json(.{ .message = "You cannot attack yourself" }, .{});
+        try res.json(.{ .message = "you cannot attack yourself" }, .{});
         return;
     }
 
     // Fetch the source village
     const source_village = try Village.initVillageById(ctx.app.db, res.arena, attackInfos.source_village_id);
     if (source_village.player_id != ctx.user_id.?) {
-        try res.json(.{ .message = "The source village is not yours" }, .{});
+        try res.json(.{ .message = "the source village is not yours" }, .{});
         return;
     }
 
@@ -53,11 +53,11 @@ pub fn attackVillage(ctx: Context, req: *httpz.Request, res: *httpz.Response) !v
     };
     const attacking_army = source_village.createAttackingArmy(ctx.app.db, req.arena, troops) catch |err| {
         if (err == error.NotEnoughUnitsInTheVillage) {
-            try res.json(.{ .message = "Not enough units" }, .{});
+            try res.json(.{ .message = "not enough units to attack" }, .{});
             return;
         }
         std.debug.print("Error while creating attacking army: {any}\n", .{err});
-        try res.json(.{ .message = "Error while creating attacking army" }, .{});
+        try res.json(.{ .message = "error while creating attacking army" }, .{});
         return;
     };
 
@@ -75,7 +75,7 @@ pub fn attackVillage(ctx: Context, req: *httpz.Request, res: *httpz.Response) !v
         .resolved = false,
     };
     try Battle.createBattle(ctx.app.db, battle);
-    try res.json(.{ .message = "You army is on the way" }, .{});
+    try res.json(.{ .success = true }, .{});
 }
 
 pub fn giveRessources(ctx: Context, req: *httpz.Request, res: *httpz.Response) !void {
@@ -148,8 +148,12 @@ pub fn createBuilding(ctx: Context, req: *httpz.Request, res: *httpz.Response) !
     const village = try Village.initVillageByPlayerId(ctx.app.db, req.arena, ctx.user_id.?);
 
     village.createBuilding(ctx.app.db, req.arena, Building.GoldMine, &gm) catch |err| {
-        std.debug.print("Error while creating building: {any}\n", .{err});
-        try res.json(.{ .success = false, .message = "not enough ressources" }, .{});
+        if (err == error.NotEnoughSpace or err == error.NotEnoughGold) {
+            try res.json(.{ .success = false, .message = "not enough ressources" }, .{});
+        } else {
+            try res.json(.{ .success = false, .message = "unexcepted error occured while creating the building" }, .{});
+            std.debug.print("Error while creating building: {any}\n", .{err});
+        }
         return;
     };
 
@@ -194,9 +198,38 @@ pub fn upgradeBuilding(ctx: Context, req: *httpz.Request, res: *httpz.Response) 
 }
 
 pub fn buyUnits(ctx: Context, req: *httpz.Request, res: *httpz.Response) !void {
-    _ = ctx;
-    _ = req;
-    try res.json(.{ .message = "Not implemented yet" }, .{});
+    const BuyInfos = struct {
+        nb_ranged: u32 = 0,
+        nb_cavalry: u32 = 0,
+        nb_infantry: u32 = 0,
+    };
+    var buyInfos = BuyInfos{};
+    if (try req.json(BuyInfos)) |bi| {
+        buyInfos.nb_ranged = bi.nb_ranged;
+        buyInfos.nb_cavalry = bi.nb_cavalry;
+        buyInfos.nb_infantry = bi.nb_infantry;
+    } else {
+        try res.json(.{ .success = false, .message = "error while parsing the request" }, .{});
+        return;
+    }
+    const recruting_village = try Village.initVillageByPlayerId(ctx.app.db, req.arena, ctx.user_id.?);
+
+    const total_cost = buyInfos.nb_ranged * 1 + buyInfos.nb_cavalry * 2 + buyInfos.nb_infantry * 1;
+
+    if (recruting_village.gold < total_cost) {
+        try res.json(.{ .success = false, .message = "not enough gold" }, .{});
+        return;
+    }
+
+    recruting_village.gold -= total_cost;
+    try recruting_village.persist(ctx.app.db);
+
+    var recruting_army = try recruting_village.getArmy(ctx.app.db, req.arena);
+    recruting_army.nb_ranged += buyInfos.nb_ranged;
+    recruting_army.nb_cavalry += buyInfos.nb_cavalry;
+    recruting_army.nb_infantry += buyInfos.nb_infantry;
+    try recruting_army.persist(ctx.app.db);
+    try res.json(.{ .success = true }, .{});
 }
 
 pub fn ranking(ctx: Context, req: *httpz.Request, res: *httpz.Response) !void {
