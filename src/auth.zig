@@ -88,6 +88,10 @@ pub fn login(ctx: Context, req: *httpz.Request, res: *httpz.Response) !void {
 }
 
 pub fn register(ctx: Context, req: *httpz.Request, res: *httpz.Response) !void {
+    //    res.headers.add("Access-Control-Allow-Origin", "http://localhost:5173");
+    std.debug.print("register \n", .{});
+    res.headers.add("Access-Control-Allow-Credentials", "true");
+
     // 1. Get the username and password from the user
     const fd = try req.formData();
     var username: []const u8 = undefined;
@@ -132,7 +136,10 @@ pub fn register(ctx: Context, req: *httpz.Request, res: *httpz.Response) !void {
     };
 
     // 5. Send a response to the user with the cookie if successful or not
-    res.headers.add("Set-Cookie", "session_id=" ++ session_id);
+    std.debug.print("session_id={s}; \n", .{session_id});
+    res.headers.add("Set-Cookie", "session_id=" ++ session_id ++ "; path=/");
+
+    std.debug.print("just before sending register \n", .{});
     try res.json(.{ .success = true }, .{});
 }
 
@@ -140,7 +147,7 @@ fn generateSessionId(session_id: *[32]u8) void {
     // FIXME bad generation
     const rand = std.crypto.random;
     for (0..32) |d| {
-        session_id[d] = rand.intRangeAtMost(u8, 65, 125);
+        session_id[d] = rand.intRangeAtMost(u8, 65, 90);
     }
 }
 

@@ -110,7 +110,7 @@ pub fn main() !void {
     var app = App{ .db = &sqldb };
 
     // Server config
-    server = try httpz.ServerCtx(*App, Context).init(allocator, .{ .port = 1950 }, &app);
+    server = try httpz.ServerCtx(*App, Context).init(allocator, .{ .port = 1950, .cors = .{ .origin = "http://localhost:5173", .headers = "content-type", .methods = "GET, POST", .max_age = "300" } }, &app);
     server.config.request.max_form_count = 20;
     var router = server.router();
     //    defer router.deinit(allocator);
