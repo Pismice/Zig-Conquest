@@ -22,11 +22,9 @@ const router = createRouter({
 router.beforeEach((to) => {
   if (to.path != "/userauth" && Cookies.get("session_id") == undefined) {
     // if the user is not connected and try to access anything but /userauth
-    console.log(Cookies.get("session_id"))
     return { path: "/userauth" }
   } else if (to.path == "/userauth" && Cookies.get("session_id") != undefined) {
     // if the user is connected and try to access /userauth
-    console.log("conneted")
     return { path: "/myvillage" }
   }
 })

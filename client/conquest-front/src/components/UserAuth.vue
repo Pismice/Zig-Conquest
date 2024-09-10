@@ -1,12 +1,16 @@
 <script setup>
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 
+const router = useRouter();
 const origin = "http://localhost:1950/";
+var us = ref('');
+var pa = ref('');
 
 function register() {
   const data = {
-    username: 'v1111',
-    password: 'mypassword'
+    username: us.value,
+    password: pa.value
   };
 
   const formBody = Object.keys(data).map(key =>
@@ -23,7 +27,9 @@ function register() {
   })
     .then(response => response.json())
     .then(data => {
-      console.log('Success:', data);
+      console.log('Server response:', data);
+      console.log(us.value + ' ' + pa.value);
+      router.push('/myvillage');
     })
     .catch(error => {
       console.error('Error:', error);
@@ -31,10 +37,21 @@ function register() {
 }
 
 onMounted(() => {
-  register()
 })
 </script>
 
 <template>
-  You are not connected because you dont have cookie _ <span><b> session_id</b></span> set !
+  <div>
+    You are not connected because you dont have cookie _ <span><b> session_id</b></span> set !
+    <div>
+      <label for="username">Username:</label>
+      <input id="username" type="text" v-model="us" class="bg-purple-950">
+    </div>
+    <div>
+      <label for="password">Password:</label>
+      <input id="password" type="text" v-model="pa" class="bg-purple-800">
+    </div>
+    {{ us }} {{ pa }}
+    <button @click="register()">Register</button>
+  </div>
 </template>

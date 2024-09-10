@@ -140,6 +140,7 @@ pub fn villageInfos(ctx: Context, req: *httpz.Request, res: *httpz.Response) !vo
     const village = try Village.initVillageByPlayerId(ctx.app.db, res.arena, player.id);
 
     // 3. Send a response to the user
+    res.headers.add("Access-Control-Allow-Credentials", "true");
     try res.json(.{village}, .{});
 }
 
