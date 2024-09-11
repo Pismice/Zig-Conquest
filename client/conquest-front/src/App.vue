@@ -9,6 +9,7 @@
         <nav class="flex flex-col">
           <RouterLink to="/" class="p-2">Home</RouterLink>
           <RouterLink to="/myvillage" class="p-2">My village</RouterLink>
+          <RouterLink to="/attack" class="p-2">Attack an other player</RouterLink>
         </nav>
       </div>
       <router-view></router-view>

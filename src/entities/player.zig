@@ -82,3 +82,17 @@ pub fn ranking(db: *sqlite.Db, allocator: std.mem.Allocator) ![]Result {
 
     return players;
 }
+
+pub fn all(db: *sqlite.Db, allocator: std.mem.Allocator) ![]Result {
+    const query =
+        \\ select username, villages.gold, villages.x_position, villages.y_position, villages.level, villages.name from player
+        \\ inner join villages on villages.player_id = player.id
+        \\ order by villages.gold desc;
+    ;
+    var stmt = try db.prepare(query);
+    defer stmt.deinit();
+
+    const players = try stmt.all(Result, allocator, .{}, .{});
+
+    return players;
+}

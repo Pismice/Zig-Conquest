@@ -61,7 +61,7 @@ fn ressourceProductionPolling(db: *sqlite.Db) !void {
         const elapsed = end - start;
         std.debug.print("Ressources polling took {d}ms\n", .{elapsed});
 
-        std.time.sleep(60 * std.time.ns_per_s);
+        std.time.sleep(5 * std.time.ns_per_s);
     }
 }
 
@@ -122,6 +122,7 @@ pub fn main() !void {
     not_connected.get("/", welcome);
     not_connected.post("auth/register", auth.register);
     not_connected.get("game/ranking", game.ranking);
+    connected.get("game/attackable_players", game.attackablePlayers);
     connected.post("auth/login", auth.login);
     connected.post("auth/logout", auth.logout);
     connected.get("game/village", game.villageInfos);

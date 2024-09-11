@@ -7,11 +7,13 @@ import App from './App.vue'
 import MyVillage from './components/MyVillage.vue'
 import TheWelcome from './components/TheWelcome.vue'
 import UserAuth from './components/UserAuth.vue'
+import AttackablePlayers from './components/AttackablePlayers.vue'
 
 const routes = [
   { path: '/', component: TheWelcome },
   { path: '/userauth', component: UserAuth },
   { path: '/myvillage', component: MyVillage },
+  { path: '/attack', component: AttackablePlayers },
 ]
 
 const router = createRouter({

@@ -10,6 +10,13 @@ const Building = @import("entities/building.zig");
 const httpz = @import("httpz");
 const helper = @import("helper.zig");
 
+pub fn attackablePlayers(ctx: Context, req: *httpz.Request, res: *httpz.Response) !void {
+    _ = try Player.initPlayerById(ctx.app.db, req.arena, ctx.user_id.?);
+    _ = try Player.all(ctx.app.db, res.arena);
+
+    try res.json(.{"not imp yet"}, .{});
+}
+
 pub fn attackVillage(ctx: Context, req: *httpz.Request, res: *httpz.Response) !void {
     // Get the village id from the request
     const AttackInfos = struct {
@@ -145,6 +152,7 @@ pub fn villageInfos(ctx: Context, req: *httpz.Request, res: *httpz.Response) !vo
 }
 
 pub fn createBuilding(ctx: Context, req: *httpz.Request, res: *httpz.Response) !void {
+    res.headers.add("Access-Control-Allow-Credentials", "true");
     var gm = Building.GoldMine{ .productivity = 1 };
     const village = try Village.initVillageByPlayerId(ctx.app.db, req.arena, ctx.user_id.?);
 
@@ -162,6 +170,7 @@ pub fn createBuilding(ctx: Context, req: *httpz.Request, res: *httpz.Response) !
 }
 
 pub fn upgradeBuilding(ctx: Context, req: *httpz.Request, res: *httpz.Response) !void {
+    res.headers.add("Access-Control-Allow-Credentials", "true");
     // Get the building id from the request
     var b_id: usize = undefined;
     const BuildingInfos = struct {
