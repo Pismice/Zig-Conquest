@@ -153,18 +153,44 @@ pub fn villageInfos(ctx: Context, req: *httpz.Request, res: *httpz.Response) !vo
 
 pub fn createBuilding(ctx: Context, req: *httpz.Request, res: *httpz.Response) !void {
     res.headers.add("Access-Control-Allow-Credentials", "true");
-    var gm = Building.GoldMine{ .productivity = 1 };
+    
+    // Get building type from request
+    const BuildingRequest = struct {
+        building_type: []const u8 = "gold_mine", // default to gold_mine for backward compatibility
+    };
+    var building_type = BuildingRequest{};
+    if (try req.json(BuildingRequest)) |br| {
+        building_type.building_type = br.building_type;
+    }
+    
     const village = try Village.initVillageByPlayerId(ctx.app.db, req.arena, ctx.user_id.?);
 
-    village.createBuilding(ctx.app.db, req.arena, Building.GoldMine, &gm) catch |err| {
-        if (err == error.NotEnoughSpace or err == error.NotEnoughGold) {
-            try res.json(.{ .success = false, .message = "not enough ressources" }, .{});
-        } else {
-            try res.json(.{ .success = false, .message = "unexcepted error occured while creating the building" }, .{});
-            std.debug.print("Error while creating building: {any}\n", .{err});
-        }
+    if (std.mem.eql(u8, building_type.building_type, "gold_mine")) {
+        var gm = Building.GoldMine{ .productivity = 1 };
+        village.createBuilding(ctx.app.db, req.arena, Building.GoldMine, &gm) catch |err| {
+            if (err == error.NotEnoughSpace or err == error.NotEnoughGold) {
+                try res.json(.{ .success = false, .message = "not enough ressources" }, .{});
+            } else {
+                try res.json(.{ .success = false, .message = "unexcepted error occured while creating the building" }, .{});
+                std.debug.print("Error while creating building: {any}\n", .{err});
+            }
+            return;
+        };
+    } else if (std.mem.eql(u8, building_type.building_type, "house")) {
+        var house = Building.House{ .population_capacity = 5 };
+        village.createBuilding(ctx.app.db, req.arena, Building.House, &house) catch |err| {
+            if (err == error.NotEnoughSpace or err == error.NotEnoughGold) {
+                try res.json(.{ .success = false, .message = "not enough ressources" }, .{});
+            } else {
+                try res.json(.{ .success = false, .message = "unexcepted error occured while creating the building" }, .{});
+                std.debug.print("Error while creating building: {any}\n", .{err});
+            }
+            return;
+        };
+    } else {
+        try res.json(.{ .success = false, .message = "unknown building type" }, .{});
         return;
-    };
+    }
 
     try res.json(.{ .success = true }, .{});
 }
@@ -239,6 +265,24 @@ pub fn buyUnits(ctx: Context, req: *httpz.Request, res: *httpz.Response) !void {
     recruting_army.nb_cavalry += buyInfos.nb_cavalry;
     recruting_army.nb_infantry += buyInfos.nb_infantry;
     try recruting_army.persist(ctx.app.db);
+    try res.json(.{ .success = true }, .{});
+}
+
+pub fn createHouse(ctx: Context, req: *httpz.Request, res: *httpz.Response) !void {
+    res.headers.add("Access-Control-Allow-Credentials", "true");
+    var house = Building.House{ .population_capacity = 5 };
+    const village = try Village.initVillageByPlayerId(ctx.app.db, req.arena, ctx.user_id.?);
+
+    village.createBuilding(ctx.app.db, req.arena, Building.House, &house) catch |err| {
+        if (err == error.NotEnoughSpace or err == error.NotEnoughGold) {
+            try res.json(.{ .success = false, .message = "not enough ressources" }, .{});
+        } else {
+            try res.json(.{ .success = false, .message = "unexcepted error occured while creating the house" }, .{});
+            std.debug.print("Error while creating house: {any}\n", .{err});
+        }
+        return;
+    };
+
     try res.json(.{ .success = true }, .{});
 }
 

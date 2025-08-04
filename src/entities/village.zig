@@ -129,6 +129,29 @@ pub fn createBuilding(self: *Village, db: *sqlite.Db, allocator: std.mem.Allocat
             try c1.db.execDynamic("INSERT INTO gold_mines(building_id,productivity) VALUES(last_insert_rowid(),?);", .{}, .{gm.productivity});
             c1.commit();
         },
+        Building.House => |_| {
+            const house: *Building.House = @ptrCast(building);
+            _ = allocator;
+
+            var c1 = try db.savepoint("c1");
+            if (self.gold < 30) {
+                return error.NotEnoughGold;
+            } else {
+                self.gold -= 30;
+            }
+
+            if (self.space_capacity < 1) {
+                return error.NotEnoughSpace;
+            } else {
+                self.space_capacity -= 1;
+            }
+
+            try self.persist(c1.db);
+
+            try c1.db.execDynamic("INSERT INTO buildings(level,space_taken,village_id) VALUES(1,0,?);", .{}, .{self.id});
+            try c1.db.execDynamic("INSERT INTO houses(building_id,population_capacity) VALUES(last_insert_rowid(),?);", .{}, .{house.population_capacity});
+            c1.commit();
+        },
         else => return error.UnkownBuildingType,
     }
 }

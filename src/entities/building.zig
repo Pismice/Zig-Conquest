@@ -7,6 +7,10 @@ pub const GoldMine = struct {
     productivity: u32,
 };
 
+pub const House = struct {
+    population_capacity: u32,
+};
+
 pub const Price = struct {
     gold: u32,
     space_capacity: u32,
@@ -86,6 +90,7 @@ pub fn upgradeBuilding(self: *Building, db: *sqlite.Db) !void {
 
     // Find the type of the buildling to do the right specific upgrade
     try c1.db.execDynamic("update gold_mines set productivity = productivity + 1 where building_id = ?", .{}, .{self.id});
+    try c1.db.execDynamic("update houses set population_capacity = population_capacity + 2 where building_id = ?", .{}, .{self.id});
     // TODO do the same for other buildings
 
     defer c1.commit();
