@@ -127,6 +127,7 @@ pub fn main() !void {
     connected.post("auth/logout", auth.logout);
     connected.get("game/village", game.villageInfos);
     connected.post("game/create_building", game.createBuilding);
+    connected.post("game/create_house", game.createHouse);
     connected.post("game/upgrade_building", game.upgradeBuilding);
     connected.post("game/buy_units", game.buyUnits);
     connected.post("game/attack", game.attackVillage);
